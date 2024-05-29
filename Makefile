@@ -9,3 +9,6 @@ MAIN=cmd/main.go
 # Run the application
 run:
 	go run $(MAIN)
+
+test: 
+	go test cmd/main_test.go
