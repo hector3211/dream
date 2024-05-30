@@ -147,6 +147,7 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if didSelect, path := m.FilePicker.DidSelectFile(msg); didSelect {
 		m.FilePath = path
 		m.State = FileView
+		m.ReadFileContents()
 		return m, tea.Batch(cmd, tea.ClearScreen)
 	}
 
@@ -169,7 +170,7 @@ func (m MainModel) View() string {
 			return ""
 		}
 		s := "\n  "
-		s += fmt.Sprintf("\n key: %s\n", string(m.Key))
+		// s += fmt.Sprintf("\n key: %s\n", string(m.Key))
 		if m.Err != nil {
 			s += fmt.Sprintf("%v", m.FilePicker.Styles.DisabledFile.Render(m.Err.Error()))
 			s += fmt.Sprintf("\nGetting ERROR: %s\n", m.Err.Error())
@@ -184,7 +185,8 @@ func (m MainModel) View() string {
 		return s
 	case FileView:
 		// s := fmt.Sprintf("Command %v\n", m.Command)
-		s := fmt.Sprintf("\n key: %s\n", string(m.Key))
+		// s := fmt.Sprintf("\n key: %s\n", string(m.Key))
+		s := "\n"
 		if m.Err != nil {
 			s += fmt.Sprintf("%v", m.FilePicker.Styles.DisabledFile.Render(m.Err.Error()))
 			s += fmt.Sprintf("\nGetting ERROR: %v\n", m.Err.Error())
@@ -225,12 +227,10 @@ func GenerateKey() tea.Cmd {
 }
 
 func StartEncrypting(key []byte, filePath string) tea.Cmd {
-	// tmpFile := "data.txt"
 	return func() tea.Msg {
-
 		keyLength := len(key)
 		if keyLength != 32 {
-			// return ErrMsg{fmt.Errorf("Invalid key length: %d", keyLength)}
+			return ErrMsg{fmt.Errorf("Invalid key length: %d", keyLength)}
 		}
 
 		fileContents, err := os.ReadFile(filePath)
@@ -287,8 +287,8 @@ func StartDecrypting(key []byte, filePath string) tea.Cmd {
 			return ErrMsg{errors.New("ciphertext too short")}
 		}
 
-		nonce, cicipherText := cipherText[:nonceSize], cipherText[nonceSize:]
-		plainText, err := gcm.Open(nil, nonce, cicipherText, nil)
+		nonce, cipherText := cipherText[:nonceSize], cipherText[nonceSize:]
+		plainText, err := gcm.Open(nil, nonce, cipherText, nil)
 		if err != nil {
 			return ErrMsg{fmt.Errorf("failed decoding cipher with error %s", err)}
 		}
