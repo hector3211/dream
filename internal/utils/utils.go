@@ -83,7 +83,7 @@ func StartEncrypting(key []byte, filePath string) tea.Cmd {
 	return func() tea.Msg {
 		isEncrypted, _ := IsFileEncrypted(filePath)
 		if isEncrypted {
-			return Successmsg{Message: "File is already encrypted."}
+			return ErrMsg{fmt.Errorf("Already encrypted")}
 		}
 		// TODO: put key lenght in .env
 		keyLength := len(key)
@@ -114,18 +114,9 @@ func StartEncrypting(key []byte, filePath string) tea.Cmd {
 		cipherText := gcm.Seal(nonce, nonce, fileContents, nil)
 		content := fmt.Sprintf("%s\n%s", MagicHeader, cipherText)
 
-		// encryptionFileTag := ".enc"
-		// currFilePath := strings.Split(filePath, ".")
-		// newFilePath := fmt.Sprintf("%s%s", currFilePath[0], encryptionFileTag)
-		//
-		// Make new encrypted file
 		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
 			return ErrMsg{fmt.Errorf("failed writing file: %s", err.Error())}
 		}
-
-		// if err := os.Rename(filePath, fmt.Sprintf("%s.enc", filePath)); err != nil {
-		// 	return ErrMsg{fmt.Errorf("failed removing old dir: %s", err.Error())}
-		// }
 
 		return Successmsg{"Successfully Encrypted file!"}
 	}
@@ -135,7 +126,7 @@ func StartDecrypting(key []byte, filePath string) tea.Cmd {
 	return func() tea.Msg {
 		isEncrypted, err := IsFileEncrypted(filePath)
 		if !isEncrypted && err == nil {
-			return Successmsg{Message: "Cannot decrypt a file that's not encrypted."}
+			return ErrMsg{fmt.Errorf("Cannot decrypt a non encrypted file.")}
 		}
 		fileContents, err := os.ReadFile(filePath)
 		if err != nil {

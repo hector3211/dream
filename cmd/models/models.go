@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"file-encrypter/internal/utils"
@@ -42,19 +43,20 @@ type KeyMap struct {
 }
 
 type MainModel struct {
-	State             State
-	Command           Command
-	Key               []byte
-	FilePicker        filepicker.Model
-	FilePath          string
-	FileContents      string
-	FileContentStyles lipgloss.Style
-	HelpMenu          help.Model
-	HelpKeys          KeyMap
-	Quitting          bool
-	Err               error
-	Message           string
-	NotifcationStyles lipgloss.Style
+	State                  State
+	Command                Command
+	Key                    []byte
+	FilePicker             filepicker.Model
+	FilePath               string
+	FileContents           string
+	FileContentStyles      lipgloss.Style
+	HelpMenu               help.Model
+	HelpKeys               KeyMap
+	Quitting               bool
+	Err                    error
+	Message                string
+	NotifcationStyles      lipgloss.Style
+	ErrorNotifcationStyles lipgloss.Style
 }
 
 // ShortHelp returns keybindings to be shown in the mini help view. It's part
@@ -73,14 +75,6 @@ func (k KeyMap) FullHelp() [][]key.Binding {
 }
 
 var keys = KeyMap{
-	// Up: key.NewBinding(
-	// 	key.WithKeys("up", "k"),
-	// 	key.WithHelp("⬆️/k", "move up"),
-	// ),
-	// Down: key.NewBinding(
-	// 	key.WithKeys("down", "j"),
-	// 	key.WithHelp("⬇️/j", "move down"),
-	// ),
 	Encrypt: key.NewBinding(
 		key.WithKeys("e"),
 		key.WithHelp("🔒/e", "encrypt"),
@@ -109,27 +103,35 @@ func InitializeMainModel() MainModel {
 	fp.AllowedTypes = []string{".txt", ".enc", ".dec", ".md"}
 	fp.CurrentDirectory, _ = os.Getwd()
 	return MainModel{
-		State:             MainView,
-		Command:           PENDING,
-		FilePicker:        fp,
-		FileContents:      "",
-		FileContentStyles: lipgloss.NewStyle().Foreground(lipgloss.Color("50")),
-		HelpMenu:          help.New(),
-		HelpKeys:          keys,
-		Key:               make([]byte, 0),
-		Quitting:          false,
-		NotifcationStyles: lipgloss.NewStyle().Foreground(lipgloss.Color("33")),
+		State:                  MainView,
+		Command:                PENDING,
+		Key:                    make([]byte, 0),
+		FilePicker:             fp,
+		FileContents:           "",
+		FileContentStyles:      lipgloss.NewStyle().Foreground(lipgloss.Color("50")),
+		HelpMenu:               help.New(),
+		HelpKeys:               keys,
+		Quitting:               false,
+		NotifcationStyles:      lipgloss.NewStyle().Foreground(lipgloss.Color("33")),
+		ErrorNotifcationStyles: lipgloss.NewStyle().Foreground(lipgloss.Color("203")),
 		// FileView:   InitializeFileModel(),
 	}
 }
 
 func (m MainModel) Init() tea.Cmd {
-	// m.ReadFileContents()
 	return tea.Batch(m.FilePicker.Init(), utils.GenerateKey())
 }
 func (m *MainModel) ReadFileContents() {
-	contents, _ := os.ReadFile(m.FilePath)
-	m.FileContents = string(contents)
+	file, _ := os.ReadFile(m.FilePath)
+	isEncrypted, _ := utils.IsFileEncrypted(m.FilePath)
+	var contents string
+	if isEncrypted {
+		data := strings.Split(string(file), "\n")
+		contents = data[1]
+		m.FileContents = contents
+		return
+	}
+	m.FileContents = string(file)
 }
 
 func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -212,7 +214,7 @@ func (m MainModel) View() string {
 		// s += fmt.Sprintf("\n key: %s\n", string(m.Key))
 		if m.Err != nil {
 			s += fmt.Sprintf("%v", m.FilePicker.Styles.DisabledFile.Render(m.Err.Error()))
-			s += fmt.Sprintf("\nGetting ERROR: %s\n", m.Err.Error())
+			s += fmt.Sprintf("%s\n", m.ErrorNotifcationStyles.Render(m.Err.Error()))
 		} else if m.FilePath == "" {
 			s += "Pick a file:"
 		} else {
@@ -229,7 +231,7 @@ func (m MainModel) View() string {
 		s := "\n"
 		s += fmt.Sprintf("%s\n", m.NotifcationStyles.Render(m.Message))
 		if m.Err != nil {
-			s += fmt.Sprintf("\nGetting ERROR: %s\n", m.Err.Error())
+			s += fmt.Sprintf("%s\n", m.ErrorNotifcationStyles.Render(m.Err.Error()))
 		}
 		s += fmt.Sprintf("%s\n", m.FileContentStyles.Render(m.FileContents))
 		helpView := m.HelpMenu.View(m.HelpKeys)
