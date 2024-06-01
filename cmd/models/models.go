@@ -122,7 +122,7 @@ func InitializeMainModel() MainModel {
 }
 
 func (m MainModel) Init() tea.Cmd {
-	m.ReadFileContents()
+	// m.ReadFileContents()
 	return tea.Batch(m.FilePicker.Init(), utils.GenerateKey())
 }
 func (m *MainModel) ReadFileContents() {
@@ -144,7 +144,8 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if len(m.FilePath) > 0 && len(m.Key) > 0 {
 					// then start encrypting
 					m.Command = ENCRYPTING
-					return m, utils.StartEncrypting(m.Key, m.FilePath)
+					cmd := utils.StartEncrypting(m.Key, m.FilePath)
+					return m, tea.Batch(cmd, m.Init())
 				}
 			case key.Matches(msg, m.HelpKeys.Decrypt):
 				if len(m.FilePath) > 0 && len(m.Key) > 0 {
@@ -167,7 +168,7 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case utils.Successmsg:
 		m.State = MainView
 		m.Message = msg.Message
-		return m, tea.Batch(cmd, m.Init(), utils.ClearMessageAfter(5*time.Second))
+		return m, tea.Batch(cmd, utils.ClearMessageAfter(5*time.Second))
 	case utils.ClearMessage:
 		m.Message = ""
 	case utils.ErrMsg:
@@ -213,8 +214,8 @@ func (m MainModel) View() string {
 		} else if m.FilePath == "" {
 			s += "Pick a file:"
 		} else {
-			s += fmt.Sprintf("%s\n", m.Message)
 			s += fmt.Sprintf("Selected file: %s\n", m.FilePicker.Styles.Selected.Render(m.FilePath))
+			s += fmt.Sprintf("%s\n", m.Message)
 			// s += fmt.Sprintf("File Path is.. :%s", m.FilePath)
 		}
 		s += fmt.Sprintf("\n\n %s\n", m.FilePicker.View())
@@ -224,6 +225,7 @@ func (m MainModel) View() string {
 		// s := fmt.Sprintf("Command %v\n", m.Command)
 		// s := fmt.Sprintf("\n key: %s\n", string(m.Key))
 		s := "\n"
+		s += fmt.Sprintf("%s\n", m.Message)
 		if m.Err != nil {
 			s += fmt.Sprintf("\nGetting ERROR: %s\n", m.Err.Error())
 		}

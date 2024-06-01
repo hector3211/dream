@@ -14,6 +14,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+const MagicHeader = "ENCRYPTED"
+
 type (
 	ErrMsg        struct{ Error error }
 	Successmsg    struct{ Message string }
@@ -47,6 +49,7 @@ func GenerateKey() tea.Cmd {
 			}
 
 			// create a file storing the key
+			// TODO: filePerm := 0400 only owner can read but not write
 			if err = os.WriteFile(keyFileName, key, 0644); err != nil {
 				return ErrMsg{errors.New("failed writing to file for new key")}
 			}
@@ -60,8 +63,29 @@ func GenerateKey() tea.Cmd {
 	}
 }
 
+func IsFileEncrypted(filePath string) (bool, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return false, fmt.Errorf("failed %s", err.Error())
+	}
+	defer file.Close()
+
+	header := make([]byte, len(MagicHeader))
+	_, err = file.Read(header)
+	if err != nil {
+		return false, fmt.Errorf("failed %s", err.Error())
+	}
+
+	return string(header) == MagicHeader, nil
+}
+
 func StartEncrypting(key []byte, filePath string) tea.Cmd {
 	return func() tea.Msg {
+		isEncrypted, _ := IsFileEncrypted(filePath)
+		if isEncrypted {
+			return Successmsg{Message: "File is already encrypted."}
+		}
+		// TODO: put key lenght in .env
 		keyLength := len(key)
 		if keyLength != 32 {
 			return ErrMsg{fmt.Errorf("Invalid key length: %d", keyLength)}
@@ -88,33 +112,38 @@ func StartEncrypting(key []byte, filePath string) tea.Cmd {
 		}
 
 		cipherText := gcm.Seal(nonce, nonce, fileContents, nil)
+		content := fmt.Sprintf("%s\n%s", MagicHeader, cipherText)
 
-		encryptionFileTag := ".enc"
-		splitPath := strings.Split(filePath, ".")
-		path, _ := splitPath[0], splitPath[1]
-		encryptedFilePath := fmt.Sprintf("%s%s", path, encryptionFileTag)
-
-		if err := os.WriteFile(encryptedFilePath, cipherText, 0644); err != nil {
+		// encryptionFileTag := ".enc"
+		// currFilePath := strings.Split(filePath, ".")
+		// newFilePath := fmt.Sprintf("%s%s", currFilePath[0], encryptionFileTag)
+		//
+		// Make new encrypted file
+		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
 			return ErrMsg{fmt.Errorf("failed writing file: %s", err.Error())}
 		}
 
-		// // delete old file
-		// if err := os.Remove(filePath); err != nil {
-		// 	return ErrMsg{fmt.Errorf("failed removing old file")}
+		// if err := os.Rename(filePath, fmt.Sprintf("%s.enc", filePath)); err != nil {
+		// 	return ErrMsg{fmt.Errorf("failed removing old dir: %s", err.Error())}
 		// }
+
 		return Successmsg{"Successfully Encrypted file!"}
 	}
 }
 
 func StartDecrypting(key []byte, filePath string) tea.Cmd {
-	// if f.CommandState != DECRYPTING {
-	// 	return fmt.Errorf("command was not 'Decrypting")
-	// }
 	return func() tea.Msg {
-		cipherText, err := os.ReadFile(filePath)
+		isEncrypted, err := IsFileEncrypted(filePath)
+		if !isEncrypted && err == nil {
+			return Successmsg{Message: "Cannot decrypt a file that's not encrypted."}
+		}
+		fileContents, err := os.ReadFile(filePath)
 		if err != nil {
 			return ErrMsg{errors.New("failed reading file")}
 		}
+
+		splitFileContents := strings.Split(string(fileContents), "\n")
+		cipherText := []byte(splitFileContents[1])
 
 		block, err := aes.NewCipher(key)
 		if err != nil {
