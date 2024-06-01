@@ -172,12 +172,12 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case utils.Successmsg:
 		m.State = MainView
 		m.Message = msg.Message
-		return m, tea.Batch(cmd, utils.ClearMessageAfter(5*time.Second))
+		return m, tea.Batch(cmd, utils.ClearMessageAfter(3*time.Second))
 	case utils.ClearMessage:
 		m.Message = ""
 	case utils.ErrMsg:
 		m.Err = fmt.Errorf("%s", msg.Error.Error())
-		return m, tea.Batch(cmd, utils.ClearErrorAfter(5*time.Second))
+		return m, tea.Batch(cmd, utils.ClearErrorAfter(3*time.Second))
 	case utils.ClearErrorMsg:
 		m.Err = nil
 	}
