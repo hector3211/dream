@@ -170,6 +170,6 @@ func StartDecrypting(key []byte, filePath string) tea.Cmd {
 			return ErrMsg{errors.New("Fialed writing decryption")}
 		}
 
-		return Successmsg{"Successfully decrypted file!!!"}
+		return Successmsg{"Successfully decrypted file!"}
 	}
 }

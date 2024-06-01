@@ -54,6 +54,7 @@ type MainModel struct {
 	Quitting          bool
 	Err               error
 	Message           string
+	NotifcationStyles lipgloss.Style
 }
 
 // ShortHelp returns keybindings to be shown in the mini help view. It's part
@@ -117,6 +118,7 @@ func InitializeMainModel() MainModel {
 		HelpKeys:          keys,
 		Key:               make([]byte, 0),
 		Quitting:          false,
+		NotifcationStyles: lipgloss.NewStyle().Foreground(lipgloss.Color("33")),
 		// FileView:   InitializeFileModel(),
 	}
 }
@@ -215,7 +217,7 @@ func (m MainModel) View() string {
 			s += "Pick a file:"
 		} else {
 			s += fmt.Sprintf("Selected file: %s\n", m.FilePicker.Styles.Selected.Render(m.FilePath))
-			s += fmt.Sprintf("%s\n", m.Message)
+			s += fmt.Sprintf("%s\n", m.NotifcationStyles.Render(m.Message))
 			// s += fmt.Sprintf("File Path is.. :%s", m.FilePath)
 		}
 		s += fmt.Sprintf("\n\n %s\n", m.FilePicker.View())
@@ -225,7 +227,7 @@ func (m MainModel) View() string {
 		// s := fmt.Sprintf("Command %v\n", m.Command)
 		// s := fmt.Sprintf("\n key: %s\n", string(m.Key))
 		s := "\n"
-		s += fmt.Sprintf("%s\n", m.Message)
+		s += fmt.Sprintf("%s\n", m.NotifcationStyles.Render(m.Message))
 		if m.Err != nil {
 			s += fmt.Sprintf("\nGetting ERROR: %s\n", m.Err.Error())
 		}
