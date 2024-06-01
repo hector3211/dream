@@ -89,9 +89,19 @@ func StartEncrypting(key []byte, filePath string) tea.Cmd {
 
 		cipherText := gcm.Seal(nonce, nonce, fileContents, nil)
 
-		if err := os.WriteFile(filePath, cipherText, 0644); err != nil {
+		encryptionFileTag := ".enc"
+		splitPath := strings.Split(filePath, ".")
+		path, _ := splitPath[0], splitPath[1]
+		encryptedFilePath := fmt.Sprintf("%s%s", path, encryptionFileTag)
+
+		if err := os.WriteFile(encryptedFilePath, cipherText, 0644); err != nil {
 			return ErrMsg{fmt.Errorf("failed writing file: %s", err.Error())}
 		}
+
+		// // delete old file
+		// if err := os.Remove(filePath); err != nil {
+		// 	return ErrMsg{fmt.Errorf("failed removing old file")}
+		// }
 		return Successmsg{"Successfully Encrypted file!"}
 	}
 }

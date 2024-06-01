@@ -31,6 +31,16 @@ const (
 	DONE
 )
 
+type KeyMap struct {
+	// Up      key.Binding
+	// Down    key.Binding
+	Back    key.Binding
+	Encrypt key.Binding
+	Decrypt key.Binding
+	Help    key.Binding
+	Quit    key.Binding
+}
+
 type MainModel struct {
 	State             State
 	Command           Command
@@ -40,29 +50,36 @@ type MainModel struct {
 	FileContents      string
 	FileContentStyles lipgloss.Style
 	HelpMenu          help.Model
+	HelpKeys          KeyMap
 	Quitting          bool
 	Err               error
 	Message           string
 }
 
-type KeyMap struct {
-	Up        key.Binding
-	Down      key.Binding
-	Encrypt   key.Binding
-	Decrypt   key.Binding
-	FilesMenu key.Binding
-	Help      key.Binding
+// ShortHelp returns keybindings to be shown in the mini help view. It's part
+// of the key.Map interface.
+func (k KeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{k.Help, k.Quit}
+}
+
+// FullHelp returns keybindings for the expanded help view. It's part of the
+// key.Map interface.
+func (k KeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{k.Back, k.Encrypt, k.Decrypt}, // first column
+		{k.Help, k.Quit},               // second column
+	}
 }
 
 var keys = KeyMap{
-	Up: key.NewBinding(
-		key.WithKeys("up", "k"),
-		key.WithHelp("⬆️/k", "move up"),
-	),
-	Down: key.NewBinding(
-		key.WithKeys("down", "j"),
-		key.WithHelp("⬇️/j", "move down"),
-	),
+	// Up: key.NewBinding(
+	// 	key.WithKeys("up", "k"),
+	// 	key.WithHelp("⬆️/k", "move up"),
+	// ),
+	// Down: key.NewBinding(
+	// 	key.WithKeys("down", "j"),
+	// 	key.WithHelp("⬇️/j", "move down"),
+	// ),
 	Encrypt: key.NewBinding(
 		key.WithKeys("e"),
 		key.WithHelp("🔒/e", "encrypt"),
@@ -71,29 +88,35 @@ var keys = KeyMap{
 		key.WithKeys("d"),
 		key.WithHelp("🔓/d", "decrypt"),
 	),
-	FilesMenu: key.NewBinding(
+	Back: key.NewBinding(
 		key.WithKeys("b"),
-		key.WithHelp("🔙/b", "go back"),
+		key.WithHelp("← /b", "go back"),
 	),
 	Help: key.NewBinding(
 		key.WithKeys("?"),
 		key.WithHelp("?", "toggle help"),
+	),
+	Quit: key.NewBinding(
+		key.WithKeys("q"),
+		key.WithHelp("q", "quit"),
 	),
 }
 
 func InitializeMainModel() MainModel {
 	fp := filepicker.New()
 	// fp.AllowedTypes = []string{".mod", ".sum", ".go", ".txt", ".md", ".drm"}
-	fp.AllowedTypes = []string{".txt", ".md"}
+	fp.AllowedTypes = []string{".txt", ".enc", ".dec", ".md"}
 	fp.CurrentDirectory, _ = os.Getwd()
 	return MainModel{
 		State:             MainView,
 		Command:           PENDING,
 		FilePicker:        fp,
 		FileContents:      "",
-		FileContentStyles: lipgloss.NewStyle().Foreground(lipgloss.Color("202")).Border(lipgloss.RoundedBorder()).Padding(2),
+		FileContentStyles: lipgloss.NewStyle().Foreground(lipgloss.Color("50")),
 		HelpMenu:          help.New(),
+		HelpKeys:          keys,
 		Key:               make([]byte, 0),
+		Quitting:          false,
 		// FileView:   InitializeFileModel(),
 	}
 }
@@ -111,26 +134,31 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "ctrl+c", "q":
+		if msg.String() == "q" || msg.String() == "ctrl+c" {
 			m.Quitting = true
 			return m, tea.Quit
-		case "b":
-			if m.State == FileView {
-				m.Command = PENDING
+		}
+		if m.State == FileView {
+			switch {
+			case key.Matches(msg, m.HelpKeys.Encrypt):
+				if len(m.FilePath) > 0 && len(m.Key) > 0 {
+					// then start encrypting
+					m.Command = ENCRYPTING
+					return m, utils.StartEncrypting(m.Key, m.FilePath)
+				}
+			case key.Matches(msg, m.HelpKeys.Decrypt):
+				if len(m.FilePath) > 0 && len(m.Key) > 0 {
+					// then start decrypting
+					m.Command = DECRYPTING
+					return m, utils.StartDecrypting(m.Key, m.FilePath)
+				}
+			case key.Matches(msg, m.HelpKeys.Back):
 				m.State = MainView
-			}
-		case "e":
-			if len(m.FilePath) > 0 && len(m.Key) > 0 {
-				// then start encrypting
-				m.Command = ENCRYPTING
-				return m, utils.StartEncrypting(m.Key, m.FilePath)
-			}
-		case "d":
-			if len(m.FilePath) > 0 && len(m.Key) > 0 {
-				// then start decrypting
-				m.Command = DECRYPTING
-				return m, utils.StartDecrypting(m.Key, m.FilePath)
+			case key.Matches(msg, m.HelpKeys.Help):
+				m.HelpMenu.ShowAll = !m.HelpMenu.ShowAll
+			case key.Matches(msg, m.HelpKeys.Quit):
+				m.Quitting = true
+				return m, tea.Quit
 			}
 		}
 	case utils.KeyMsg:
@@ -139,7 +167,7 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case utils.Successmsg:
 		m.State = MainView
 		m.Message = msg.Message
-		return m, tea.Batch(cmd, utils.ClearMessageAfter(5*time.Second))
+		return m, tea.Batch(cmd, m.Init(), utils.ClearMessageAfter(5*time.Second))
 	case utils.ClearMessage:
 		m.Message = ""
 	case utils.ErrMsg:
@@ -178,7 +206,6 @@ func (m MainModel) View() string {
 			return ""
 		}
 		s := "\n  "
-		s += fmt.Sprintln(m.Message)
 		// s += fmt.Sprintf("\n key: %s\n", string(m.Key))
 		if m.Err != nil {
 			s += fmt.Sprintf("%v", m.FilePicker.Styles.DisabledFile.Render(m.Err.Error()))
@@ -186,23 +213,23 @@ func (m MainModel) View() string {
 		} else if m.FilePath == "" {
 			s += "Pick a file:"
 		} else {
+			s += fmt.Sprintf("%s\n", m.Message)
 			s += fmt.Sprintf("Selected file: %s\n", m.FilePicker.Styles.Selected.Render(m.FilePath))
 			// s += fmt.Sprintf("File Path is.. :%s", m.FilePath)
 		}
 		s += fmt.Sprintf("\n\n %s\n", m.FilePicker.View())
+		s += fmt.Sprintf("")
 		return s
 	case FileView:
 		// s := fmt.Sprintf("Command %v\n", m.Command)
 		// s := fmt.Sprintf("\n key: %s\n", string(m.Key))
 		s := "\n"
 		if m.Err != nil {
-			s += fmt.Sprintf("%v", m.FilePicker.Styles.DisabledFile.Render(m.Err.Error()))
-			s += fmt.Sprintf("\nGetting ERROR: %v\n", m.Err.Error())
+			s += fmt.Sprintf("\nGetting ERROR: %s\n", m.Err.Error())
 		}
-		s += fmt.Sprintf("%s\n\n", m.Message)
-		s += fmt.Sprintf("\n%s", m.FileContentStyles.Render(m.FileContents))
-		s += fmt.Sprintf("\n\n[b] 🔙  [e] to Encrypt file [d] to Decrypt file or [q] to Quit\n")
-		return s
+		s += fmt.Sprintf("%s\n", m.FileContentStyles.Render(m.FileContents))
+		helpView := m.HelpMenu.View(m.HelpKeys)
+		return fmt.Sprintf("%s\n%s", s, helpView)
 	}
-	return "Nothing"
+	return ""
 }
