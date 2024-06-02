@@ -12,6 +12,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/joho/godotenv"
 )
 
 const MagicHeader = "ENCRYPTED"
@@ -39,7 +40,11 @@ func GenerateKey() tea.Cmd {
 	// check if user has a .drm file with encrypted key in it
 	// TODO make key file name an env variable
 	return func() tea.Msg {
-		keyFileName := "key.drm"
+		err := godotenv.Load(".env")
+		if err != nil {
+			return tea.Quit
+		}
+		keyFileName := os.Getenv("KEY_FILE_NAME")
 		key, keyFileErr := os.ReadFile(keyFileName)
 		if keyFileErr != nil {
 			key := make([]byte, 32)
