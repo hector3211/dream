@@ -1,3 +1,4 @@
 key.drm
 data.txt
 .env*
+/bin*
